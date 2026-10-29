@@ -93,3 +93,18 @@ body {
     color: #667085;
     font-size: 13px;
 }
+
+.alert-success {
+    color: #067647;
+    background: #dcfae6;
+}
+
+.account-details {
+    margin: 0 0 20px;
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 10px;
+}
+
+.account-details dt { font-weight: 700; }
+.account-details dd { margin: 0; overflow-wrap: anywhere; }

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_guest();
 
 $errors = [];
 
@@ -10,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors['csrf'] = 'Your session has expired. Please try again.';
     } else {
         $name = trim((string) ($_POST['name'] ?? ''));
-        $email = trim((string) ($_POST['email'] ?? ''));
+        $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
         $confirmPassword = (string) ($_POST['confirm_password'] ?? '');
 
@@ -57,9 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $userId = (int) $pdo->lastInsertId();
 
                     session_regenerate_id(true);
+                    $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([$userId]);
                     $_SESSION['user_id'] = $userId;
-                    $_SESSION['user_name'] = $name;
-                    $_SESSION['user_email'] = $email;
+                    $_SESSION['role'] = 'user';
+                    $_SESSION['last_activity'] = time();
                     unset($_SESSION['csrf_token']);
                     redirect('dashboard.php');
                 } catch (PDOException $exception) {

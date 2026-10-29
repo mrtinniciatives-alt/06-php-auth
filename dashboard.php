@@ -2,21 +2,16 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_login();
+$user = current_user();
 
-if (!isset($_SESSION['user_id'])) {
-    redirect('register.php');
+if ($user === null) {
+    redirect('login.php');
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logout') {
-    if (csrf_verify()) {
-        $_SESSION = [];
-        if (isset($_COOKIE[session_name()])) {
-            setcookie(session_name(), '', ['expires' => time() - 3600, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax']);
-        }
-        session_destroy();
-        redirect('register.php');
-    }
-}
+$lastLogin = $user['last_login_at'] === null
+    ? 'First login'
+    : date('F j, Y g:i A', strtotime((string) $user['last_login_at']));
 ?>
 <!doctype html>
 <html lang="en">
@@ -30,10 +25,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'logou
 <main class="auth-shell">
     <section class="auth-card">
         <h1>Dashboard</h1>
-        <p>Welcome, <?= e($_SESSION['user_name'] ?? 'User') ?>.</p>
-        <form method="post" action="dashboard.php">
+        <p>Welcome, <?= e($user['name']) ?>.</p>
+        <dl class="account-details">
+            <dt>Email</dt><dd><?= e($user['email']) ?></dd>
+            <dt>Role</dt><dd><?= e($user['role']) ?></dd>
+            <dt>Last login</dt><dd><?= e($lastLogin) ?></dd>
+        </dl>
+        <form method="post" action="logout.php">
             <?= csrf_field() ?>
-            <input type="hidden" name="action" value="logout">
             <button class="auth-button" type="submit">Log out</button>
         </form>
     </section>
