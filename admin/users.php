@@ -18,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($targetId === false || $targetId === null || !in_array($newRole, ['user', 'admin'], true)) {
             $error = 'Invalid role update.';
-        } elseif ((int) $targetId === (int) $currentUser['id']) {
+        } elseif ((int) $targetId === (int) $currentUser['id'] && $newRole === 'user') {
             $error = 'You cannot demote yourself.';
         } else {
             $update = $pdo->prepare('UPDATE users SET role = ? WHERE id = ?');

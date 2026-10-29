@@ -22,7 +22,7 @@ $lastLogin = $user['last_login_at'] === null
     <link rel="stylesheet" href="assets/auth.css">
 </head>
 <body>
-<nav class="navbar"><a href="dashboard.php">Dashboard</a><?php if ((string) $user['role'] === 'admin'): ?><a href="admin/users.php">Admin</a><?php endif; ?></nav>
+<nav class="navbar"><a href="dashboard.php">Dashboard</a><?php if ((string) $user['role'] === 'admin'): ?><a href="admin/users.php">Admin</a><?php endif; ?><a href="profile.php">Profile</a></nav>
 <main class="auth-shell">
     <section class="auth-card">
         <h1>Dashboard</h1>
