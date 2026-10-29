@@ -13,36 +13,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = strtolower(trim((string) ($_POST['email'] ?? '')));
         $password = (string) ($_POST['password'] ?? '');
         $pdo = db($config);
-
-        $stmt = $pdo->prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-
-        $valid = is_array($user) && password_verify($password, (string) $user['password_hash']);
         $ipAddress = $_SERVER['REMOTE_ADDR'] ?? null;
-        $attempt = $pdo->prepare(
-            'INSERT INTO login_attempts (user_id, email, ip_address, successful, attempted_at) VALUES (?, ?, ?, ?, NOW())'
-        );
-        $attempt->execute([$valid ? (int) $user['id'] : null, $email, is_string($ipAddress) ? substr($ipAddress, 0, 45) : null, $valid ? 1 : 0]);
+        $ipAddress = is_string($ipAddress) ? substr($ipAddress, 0, 45) : null;
 
-        if (!$valid) {
-            $error = 'Invalid email or password';
-        } else {
-            if (password_needs_rehash((string) $user['password_hash'], PASSWORD_DEFAULT)) {
-                $newHash = password_hash($password, PASSWORD_DEFAULT);
-                $rehash = $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?');
-                $rehash->execute([$newHash, (int) $user['id']]);
+        $unlockAt = 0;
+        $failedByEmail = $pdo->prepare("SELECT COUNT(*) AS failures, MAX(attempted_at) AS latest_failure FROM login_attempts WHERE successful = 0 AND email = ? AND attempted_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+        $failedByEmail->execute([$email]);
+        $emailResult = $failedByEmail->fetch();
+                if (is_array($emailResult) && (int) $emailResult['failures'] >= 5 && $emailResult['latest_failure'] !== null) {
+                    $unlockAt = max($unlockAt, strtotime((string) $emailResult['latest_failure']) + 900);
+        }
+
+        if ($ipAddress !== null) {
+            $failedByIp = $pdo->prepare("SELECT COUNT(*) AS failures, MAX(attempted_at) AS latest_failure FROM login_attempts WHERE successful = 0 AND ip_address = ? AND attempted_at >= DATE_SUB(NOW(), INTERVAL 15 MINUTE)");
+            $failedByIp->execute([$ipAddress]);
+            $ipResult = $failedByIp->fetch();
+                        if (is_array($ipResult) && (int) $ipResult['failures'] >= 5 && $ipResult['latest_failure'] !== null) {
+                            $unlockAt = max($unlockAt, strtotime((string) $ipResult['latest_failure']) + 900);
             }
+        }
 
-            $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([(int) $user['id']]);
+        if ($unlockAt > time()) {
+            $minutes = max(1, (int) ceil(($unlockAt - time()) / 60));
+            $error = 'Too many attempts, try again in ' . $minutes . ' minutes';
+        } else {
+            $stmt = $pdo->prepare('SELECT id, name, email, password_hash, role FROM users WHERE email = ? LIMIT 1');
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
 
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = (int) $user['id'];
-            $_SESSION['role'] = (string) $user['role'];
-            $_SESSION['last_activity'] = time();
-            unset($_SESSION['csrf_token']);
+            $valid = is_array($user) && password_verify($password, (string) $user['password_hash']);
+            $attempt = $pdo->prepare(
+                'INSERT INTO login_attempts (user_id, email, ip_address, successful, attempted_at) VALUES (?, ?, ?, ?, NOW())'
+            );
+            $attempt->execute([$valid ? (int) $user['id'] : null, $email, $ipAddress, $valid ? 1 : 0]);
 
-            redirect(pop_intended_url());
+            if (!$valid) {
+                $error = 'Invalid email or password';
+            } else {
+                if (password_needs_rehash((string) $user['password_hash'], PASSWORD_DEFAULT)) {
+                    $newHash = password_hash($password, PASSWORD_DEFAULT);
+                    $rehash = $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?');
+                    $rehash->execute([$newHash, (int) $user['id']]);
+                }
+
+                $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?')->execute([(int) $user['id']]);
+                if ($ipAddress === null) {
+                    $clear = $pdo->prepare('DELETE FROM login_attempts WHERE email = ?');
+                    $clear->execute([$email]);
+                } else {
+                    $clear = $pdo->prepare('DELETE FROM login_attempts WHERE email = ? OR ip_address = ?');
+                    $clear->execute([$email, $ipAddress]);
+                }
+
+                session_regenerate_id(true);
+                $_SESSION['user_id'] = (int) $user['id'];
+                $_SESSION['role'] = (string) $user['role'];
+                $_SESSION['last_activity'] = time();
+                unset($_SESSION['csrf_token']);
+
+                redirect(pop_intended_url());
+            }
         }
     }
 }

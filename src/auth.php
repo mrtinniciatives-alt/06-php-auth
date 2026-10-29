@@ -44,7 +44,7 @@ function require_role(string $role): void
     $user = current_user();
     if ($user === null || !hash_equals($role, (string) $user['role'])) {
         http_response_code(403);
-        echo 'Forbidden';
+        echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Access denied</title><link rel="stylesheet" href="../assets/auth.css"></head><body><main class="auth-shell"><section class="auth-card"><h1>Access denied</h1><p>You do not have permission to view this page.</p><p><a href="../dashboard.php">Return to dashboard</a></p></section></main></body></html>';
         exit;
     }
 }
